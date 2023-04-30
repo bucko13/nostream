@@ -61,6 +61,21 @@ export class InvoiceRepository implements IInvoiceRepository {
     return fromDBInvoice(dbInvoice)
   }
 
+  public async findInvoiceByBolt11(
+    bolt11: string,
+    client: DatabaseClient = this.dbClient,
+  ): Promise<Invoice | undefined> {
+    const dbInvoice = await client<DBInvoice>('invoices')
+      .where('bolt11', bolt11)
+      .select()
+
+    if (!dbInvoice) {
+      return
+    }
+
+    return fromDBInvoice(dbInvoice)
+  }
+
   public async findPendingInvoices(
     offset = 0,
     limit = 10,

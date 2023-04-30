@@ -1,4 +1,4 @@
-import { Invoice } from './invoice'
+import { Invoice, InvoiceStatus } from './invoice'
 import { Pubkey } from './base'
 
 export interface IPaymentsService {
@@ -15,4 +15,5 @@ export interface IPaymentsService {
   ): Promise<void>
   sendInvoiceUpdateNotification(invoice: Invoice): Promise<void>
   getPendingInvoices(): Promise<Invoice[]>
+  checkInvoiceStatus(bolt11: string): Promise<InvoiceStatus>
 }

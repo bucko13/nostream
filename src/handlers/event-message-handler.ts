@@ -1,4 +1,4 @@
-import { Event, ExpiringEvent  } from '../@types/event'
+import { Event, ExpiringEvent } from '../@types/event'
 import { EventRateLimit, FeeSchedule, Settings } from '../@types/settings'
 import { getEventExpiration, getEventProofOfWork, getPubkeyProofOfWork, getPublicKey, getRelayPrivateKey, isEventIdValid, isEventKindOrRangeMatch, isEventSignatureValid, isExpiredEvent } from '../utils/event'
 import { IEventStrategy, IMessageHandler } from '../@types/message-handlers'
@@ -12,6 +12,7 @@ import { IRateLimiter } from '../@types/utils'
 import { IUserRepository } from '../@types/repositories'
 import { IWebSocketAdapter } from '../@types/adapters'
 import { WebSocketAdapterEvent } from '../constants/adapter'
+import { IPaymentsService } from '../@types/services'
 
 const debug = createLogger('event-message-handler')
 
@@ -22,7 +23,8 @@ export class EventMessageHandler implements IMessageHandler {
     protected readonly userRepository: IUserRepository,
     private readonly settings: () => Settings,
     private readonly slidingWindowRateLimiter: Factory<IRateLimiter>,
-  ) {}
+    private readonly paymentsService: () => IPaymentsService
+  ) { }
 
   public async handleMessage(message: IncomingEventMessage): Promise<void> {
     let [, event] = message
@@ -57,6 +59,7 @@ export class EventMessageHandler implements IMessageHandler {
       return
     }
 
+
     reason = await this.isUserAdmitted(event)
     if (reason) {
       debug('event %s rejected: %s', event.id, reason)
@@ -85,10 +88,14 @@ export class EventMessageHandler implements IMessageHandler {
   }
 
   protected canAcceptEvent(event: Event): string | undefined {
+<<<<<<< ours
     if (this.getRelayPublicKey() === event.pubkey) {
       return
     }
     const now = Math.floor(Date.now()/1000)
+=======
+    const now = Math.floor(Date.now() / 1000)
+>>>>>>> theirs
 
     const limits = this.settings().limits?.event ?? {}
 
@@ -290,11 +297,11 @@ export class EventMessageHandler implements IMessageHandler {
   protected addExpirationMetadata(event: Event): Event | ExpiringEvent {
     const eventExpiration: number = getEventExpiration(event)
     if (eventExpiration) {
-        const expiringEvent: ExpiringEvent = {
-          ...event,
-          [EventExpirationTimeMetadataKey]: eventExpiration,
-        }
-        return expiringEvent
+      const expiringEvent: ExpiringEvent = {
+        ...event,
+        [EventExpirationTimeMetadataKey]: eventExpiration,
+      }
+      return expiringEvent
     } else {
       return event
     }

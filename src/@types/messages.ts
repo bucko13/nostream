@@ -9,16 +9,18 @@ export enum MessageType {
   CLOSE = 'CLOSE',
   NOTICE = 'NOTICE',
   EOSE = 'EOSE',
-  OK = 'OK'
+  OK = 'OK',
+  AUTH = 'AUTH',
 }
 
 export type IncomingMessage = (
   | SubscribeMessage
   | IncomingEventMessage
   | UnsubscribeMessage
-  ) & {
-    [ContextMetadataKey]?: ContextMetadata
-  }
+  | Auth402Message
+) & {
+  [ContextMetadataKey]?: ContextMetadata
+}
 
 
 export type OutgoingMessage =
@@ -26,6 +28,7 @@ export type OutgoingMessage =
   | EndOfStoredEventsNotice
   | NoticeMessage
   | CommandResult
+  | Auth402Message
 
 export type SubscribeMessage = {
   [index in Range<2, 100>]: SubscriptionFilter
@@ -57,6 +60,11 @@ export interface UnsubscribeMessage {
 
 export interface NoticeMessage {
   0: MessageType.NOTICE
+  1: string
+}
+
+export interface Auth402Message {
+  0: MessageType.AUTH
   1: string
 }
 

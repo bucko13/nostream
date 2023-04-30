@@ -1,4 +1,5 @@
 import {
+  Auth402Message,
   EndOfStoredEventsNotice,
   IncomingEventMessage,
   IncomingRelayedEventMessage,
@@ -49,3 +50,5 @@ export const createRelayedEventMessage =
 
     return [MessageType.EVENT, event, secret]
   }
+
+export const createAuth402Message = (lsatChallenge: string): Auth402Message => [MessageType.AUTH, lsatChallenge]

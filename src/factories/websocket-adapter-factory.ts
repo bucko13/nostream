@@ -2,6 +2,7 @@ import { IncomingMessage } from 'http'
 import { WebSocket } from 'ws'
 
 import { IEventRepository, IUserRepository } from '../@types/repositories'
+import { createPaymentsService } from './payments-service-factory'
 import { createSettings } from './settings-factory'
 import { IWebSocketServerAdapter } from '../@types/adapters'
 import { messageHandlerFactory } from './message-handler-factory'
@@ -20,4 +21,5 @@ export const webSocketAdapterFactory = (
       messageHandlerFactory(eventRepository, userRepository),
       slidingWindowRateLimiterFactory,
       createSettings,
+      createPaymentsService(),
     )

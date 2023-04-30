@@ -6,6 +6,7 @@ export enum EventKinds {
   ENCRYPTED_DIRECT_MESSAGE = 4,
   DELETE = 5,
   REACTION = 7,
+  AUTH_402_MESSAGE = 10402,
   // Channels
   CHANNEL_CREATION = 40,
   CHANNEL_METADATA = 41,

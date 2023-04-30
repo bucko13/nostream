@@ -34,6 +34,10 @@ export interface IInvoiceRepository {
     limit?: number,
     client?: DatabaseClient,
   ): Promise<Invoice[]>
+  findInvoiceByBolt11(
+    bolt11: string,
+    client?: DatabaseClient,
+  )
 }
 
 export interface IUserRepository {

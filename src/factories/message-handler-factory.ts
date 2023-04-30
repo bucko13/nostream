@@ -10,6 +10,7 @@ import { IWebSocketAdapter } from '../@types/adapters'
 import { slidingWindowRateLimiterFactory } from './rate-limiter-factory'
 import { SubscribeMessageHandler } from '../handlers/subscribe-message-handler'
 import { UnsubscribeMessageHandler } from '../handlers/unsubscribe-message-handler'
+import { createPaymentsService } from './payments-service-factory'
 
 export const messageHandlerFactory = (
   eventRepository: IEventRepository,
@@ -25,6 +26,7 @@ export const messageHandlerFactory = (
             userRepository,
             createSettings,
             slidingWindowRateLimiterFactory,
+            createPaymentsService,
           )
         }
 
@@ -34,6 +36,7 @@ export const messageHandlerFactory = (
           userRepository,
           createSettings,
           slidingWindowRateLimiterFactory,
+          createPaymentsService,
         )
       }
     case MessageType.REQ:

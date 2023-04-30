@@ -4,22 +4,26 @@ import { IncomingMessage as IncomingHttpMessage } from 'http'
 import { WebSocket } from 'ws'
 
 import { ContextMetadata, Factory } from '../@types/base'
-import { createNoticeMessage, createOutgoingEventMessage } from '../utils/messages'
+import { createAuth402Message, createNoticeMessage, createOutgoingEventMessage } from '../utils/messages'
 import { IAbortable, IMessageHandler } from '../@types/message-handlers'
-import { IncomingMessage, OutgoingMessage } from '../@types/messages'
+import { IncomingEventMessage, IncomingMessage, OutgoingMessage } from '../@types/messages'
 import { IWebSocketAdapter, IWebSocketServerAdapter } from '../@types/adapters'
 import { SubscriptionFilter, SubscriptionId } from '../@types/subscription'
 import { WebSocketAdapterEvent, WebSocketServerAdapterEvent } from '../constants/adapter'
 import { attemptValidation } from '../utils/validation'
-import { ContextMetadataKey } from '../constants/base'
+import { ContextMetadataKey, EventKinds } from '../constants/base'
 import { createLogger } from '../factories/logger-factory'
+import { createLsat, getLsatFromMessage } from '../utils/lsat'
 import { Event } from '../@types/event'
 import { getRemoteAddress } from '../utils/http'
+import { IPaymentsService } from '../@types/services'
 import { IRateLimiter } from '../@types/utils'
 import { isEventMatchingFilter } from '../utils/event'
+import { Lsat } from "lsat-js"
 import { messageSchema } from '../schemas/message-schema'
 import { Settings } from '../@types/settings'
 import { SocketAddress } from 'net'
+import { InvoiceStatus } from '../@types/invoice'
 
 
 const debug = createLogger('web-socket-adapter')
@@ -32,6 +36,8 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
   private clientAddress: SocketAddress
   private alive: boolean
   private subscriptions: Map<SubscriptionId, SubscriptionFilter[]>
+  // use this to track if the session has been authed
+  private authed402: boolean
 
   public constructor(
     private readonly client: WebSocket,
@@ -40,9 +46,11 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
     private readonly createMessageHandler: Factory<IMessageHandler, [IncomingMessage, IWebSocketAdapter]>,
     private readonly slidingWindowRateLimiter: Factory<IRateLimiter>,
     private readonly settings: Factory<Settings>,
+    private readonly paymentsService: IPaymentsService,
   ) {
     super()
     this.alive = true
+    this.authed402 = false
     this.subscriptions = new Map()
 
     this.clientId = Buffer.from(this.request.headers['sec-websocket-key'] as string, 'base64').toString('hex')
@@ -154,7 +162,7 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
         return
       }
 
-      const message = attemptValidation(messageSchema)(JSON.parse(raw.toString('utf8')))
+      const message: IncomingEventMessage = attemptValidation(messageSchema)(JSON.parse(raw.toString('utf8')))
 
       message[ContextMetadataKey] = {
         remoteAddress: this.clientAddress,
@@ -172,6 +180,32 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
         const handlers = abortableMessageHandlers.get(this.client) ?? []
         handlers.push(messageHandler)
         abortableMessageHandlers.set(this.client, handlers)
+      }
+
+      // TODO: is there a way to split this up?
+      // TODO: what if the message is an auth event. need to handle separately
+      const [, event] = message
+      console.log('tthe event', event)
+      if (!this.authed402 && event?.pubkey && event.kind !== EventKinds.AUTH_402_MESSAGE) {
+        // client is not authed and this is not an auth message with lsat
+        // response, so we want to send the lsat back to the user
+        const invoice = await this.paymentsService.createInvoice(
+          event.pubkey,
+          BigInt(2000000), // 2,000,000 millisatoshis (2k sats)
+          'Auth with 402 for my relay'
+        )
+        const lsat = createLsat(invoice, [1, 9, 11])
+        this.sendMessage(createAuth402Message(lsat.toChallenge()))
+        return
+      } else if (!this.authed402 && event.kind === EventKinds.AUTH_402_MESSAGE) {
+        const lsat = getLsatFromMessage(message)
+        const isAuthorized = this.authorize402Channel(lsat)
+        if (!isAuthorized) {
+          console.log('Still not authorized!')
+          this.sendMessage(createAuth402Message(lsat.toChallenge()))
+          return
+        }
+        console.log('The invoice was paid! Still need to check permissions')
       }
 
       await messageHandler.handleMessage(message)
@@ -267,5 +301,19 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
 
     this.removeAllListeners()
     this.client.removeAllListeners()
+  }
+
+  private async authorize402Channel(lsat: Lsat) {
+    const { invoice } = lsat
+    const status = await this.paymentsService.checkInvoiceStatus(invoice)
+
+    if (status === InvoiceStatus.COMPLETED) {
+      this.authed402 = true
+      return true
+    }
+
+    else {
+      return false
+    }
   }
 }

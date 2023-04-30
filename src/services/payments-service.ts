@@ -22,7 +22,7 @@ export class PaymentsService implements IPaymentsService {
     private readonly invoiceRepository: IInvoiceRepository,
     private readonly eventRepository: IEventRepository,
     private readonly settings: () => Settings
-  ) {}
+  ) { }
 
   public async getPendingInvoices(): Promise<Invoice[]> {
     debug('get pending invoices')
@@ -193,22 +193,22 @@ export class PaymentsService implements IPaymentsService {
           return sum + (isApplicableFee(feeSchedule) ? BigInt(feeSchedule.amount) : 0n)
         }, 0n)
 
-        if (
-          admissionFeeAmount > 0n
-          && amountPaidMsat >= admissionFeeAmount
-        ) {
-          const date = new Date()
-          // TODO: Convert to stored func
-          await this.userRepository.upsert(
-            {
-              pubkey: invoice.pubkey,
-              isAdmitted: true,
-              tosAcceptedAt: date,
-              updatedAt: date,
-            },
-            transaction.transaction,
-          )
-        }
+      if (
+        admissionFeeAmount > 0n
+        && amountPaidMsat >= admissionFeeAmount
+      ) {
+        const date = new Date()
+        // TODO: Convert to stored func
+        await this.userRepository.upsert(
+          {
+            pubkey: invoice.pubkey,
+            isAdmitted: true,
+            tosAcceptedAt: date,
+            updatedAt: date,
+          },
+          transaction.transaction,
+        )
+      }
 
       await transaction.commit()
     } catch (error) {
@@ -276,5 +276,24 @@ export class PaymentsService implements IPaymentsService {
       andThen(broadcastEvent),
       otherwise(logError),
     )(unsignedInvoiceEvent)
+  }
+
+  public async checkInvoiceStatus(bolt11: string): Promise<InvoiceStatus> {
+    const invoice = await this.invoiceRepository.findInvoiceByBolt11(bolt11)
+    const updatedInvoice = await this.getInvoiceFromPaymentsProcessor(invoice)
+
+    if (
+      invoice.status !== updatedInvoice.status
+      && updatedInvoice.status == InvoiceStatus.COMPLETED
+      && invoice.confirmedAt
+    ) {
+      debug('confirming invoice %s & notifying %s', invoice.id, invoice.pubkey)
+      await Promise.all([
+        this.confirmInvoice(invoice),
+        this.sendInvoiceUpdateNotification(invoice),
+      ])
+    }
+
+    return updatedInvoice.status || invoice.status
   }
 }
