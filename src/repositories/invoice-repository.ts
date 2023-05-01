@@ -66,13 +66,12 @@ export class InvoiceRepository implements IInvoiceRepository {
     client: DatabaseClient = this.dbClient,
   ): Promise<Invoice | undefined> {
     const dbInvoice = await client<DBInvoice>('invoices')
-      .where('bolt11', bolt11)
-      .select()
+      .where('bolt11', bolt11).first()
 
     if (!dbInvoice) {
+      console.error('requested an invoice that does not exist in db')
       return
     }
-
     return fromDBInvoice(dbInvoice)
   }
 

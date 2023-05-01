@@ -31,7 +31,6 @@ export class PaymentsService implements IPaymentsService {
       return await this.invoiceRepository.findPendingInvoices(0, 10)
     } catch (error) {
       console.log('Unable to get pending invoices.', error)
-
       throw error
     }
   }
@@ -44,7 +43,6 @@ export class PaymentsService implements IPaymentsService {
       )
     } catch (error) {
       console.log('Unable to get invoice from payments processor. Reason:', error)
-
       throw error
     }
   }
@@ -338,21 +336,33 @@ Thanks!`,
   }
 
   public async checkInvoiceStatus(bolt11: string): Promise<InvoiceStatus | void> {
-    const invoice = await this.invoiceRepository.findInvoiceByBolt11(bolt11)
-    const updatedInvoice = await this.getInvoiceFromPaymentsProcessor(invoice)
+    try {
+      const invoice = await this.invoiceRepository.findInvoiceByBolt11(bolt11)
+      if (!invoice) {
+        throw new Error('Could not find invoice to check status of.')
+      }
 
-    if (
-      invoice.status !== updatedInvoice.status
-      && updatedInvoice.status == InvoiceStatus.COMPLETED
-      && invoice.confirmedAt
-    ) {
-      debug('confirming invoice %s & notifying %s', invoice.id, invoice.pubkey)
-      await Promise.all([
-        this.confirmInvoice(invoice),
-        this.sendInvoiceUpdateNotification(invoice),
-      ])
+      const updatedInvoice = await this.getInvoiceFromPaymentsProcessor(invoice)
+      if (!updatedInvoice) {
+        throw new Error('Could not find invoice to update status from.')
+      }
+
+      if (
+        invoice.status !== updatedInvoice.status
+        && updatedInvoice.status == InvoiceStatus.COMPLETED
+        && invoice.confirmedAt
+      ) {
+        debug('confirming invoice %s & notifying %s', invoice.id, invoice.pubkey)
+        await Promise.all([
+          this.confirmInvoice(invoice),
+          this.sendInvoiceUpdateNotification(invoice),
+        ])
+        return updatedInvoice.status
+      }
+
+      return invoice.status
+    } catch (e) {
+      console.error('error getting invoice status:', e)
     }
-
-    return updatedInvoice.status
   }
 }

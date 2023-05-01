@@ -19,7 +19,7 @@ import { getRemoteAddress } from '../utils/http'
 import { IPaymentsService } from '../@types/services'
 import { IRateLimiter } from '../@types/utils'
 import { isEventMatchingFilter } from '../utils/event'
-import { Lsat } from "lsat-js"
+import { Lsat } from 'lsat-js'
 import { messageSchema } from '../schemas/message-schema'
 import { Settings } from '../@types/settings'
 import { SocketAddress } from 'net'
@@ -185,13 +185,12 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
       // TODO: is there a way to split this up?
       // TODO: what if the message is an auth event. need to handle separately
       const [, event] = message
-      console.log('tthe event', event)
       if (!this.authed402 && event?.pubkey && event.kind !== EventKinds.AUTH_402_MESSAGE) {
         // client is not authed and this is not an auth message with lsat
         // response, so we want to send the lsat back to the user
         const invoice = await this.paymentsService.createInvoice(
           event.pubkey,
-          BigInt(2000000), // 2,000,000 millisatoshis (2k sats)
+          BigInt(500000), // 2,000,000 millisatoshis (2k sats)
           'Auth with 402 for my relay'
         )
         const lsat = createLsat(invoice, [1, 9, 11])
@@ -199,7 +198,7 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
         return
       } else if (!this.authed402 && event.kind === EventKinds.AUTH_402_MESSAGE) {
         const lsat = getLsatFromMessage(message)
-        const isAuthorized = this.authorize402Channel(lsat)
+        const isAuthorized = await this.authorize402Channel(lsat)
         if (!isAuthorized) {
           console.log('Still not authorized!')
           this.sendMessage(createAuth402Message(lsat.toChallenge()))
@@ -303,15 +302,13 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
 
   private async authorize402Channel(lsat: Lsat) {
     const { invoice } = lsat
-    const status = await this.paymentsService.checkInvoiceStatus(invoice)
-    console.log('status:', status)
-    if (status === InvoiceStatus.COMPLETED) {
-      this.authed402 = true
-      return true
-    }
-
-    else {
-      return false
+    let status
+    try {
+      status = await this.paymentsService.checkInvoiceStatus(invoice)
+      this.authed402 = status ? status === InvoiceStatus.COMPLETED : false
+      return this.authed402
+    } catch (e) {
+      console.error(e)
     }
   }
 }

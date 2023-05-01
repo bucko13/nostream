@@ -32,12 +32,12 @@ export const createLsat = (invoice: Invoice, kinds?: EventKinds[]): Lsat => {
 export const getLsatFromMessage = (message: IncomingEventMessage) => {
   const [_kind, { tags }] = message
   const [_relayTag, challengeTag] = tags
-  if (challengeTag[0] !== "challenge") {
+  if (challengeTag[0] !== 'challenge') {
     // TODO figure out how to handle errors
     console.error(`expected a challenge tag in auth event. instead received ${challengeTag[0]}`)
-    throw new Error("Invalid auth message")
+    throw new Error('Invalid auth message')
   }
   const challenge = challengeTag[1]
-  const lsat = Lsat.fromToken(challenge)
+  const lsat = Lsat.fromChallenge(challenge)
   return lsat
 }
